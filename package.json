@@ -3,5 +3,5 @@
         ["ads124s08.py", "github:IRWeidman/micropython-ADS124S08/ads124s08.py"]
     ],
     "deps": [],
-    "version": "0.1.0"
+    "version": "0.0.1"
 }
