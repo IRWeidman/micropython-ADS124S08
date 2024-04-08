@@ -7,6 +7,7 @@ Raspberry Pi Pico.
 """
 import machine
 
+SPI_ID = 0
 ADS_RESET = machine.Pin(0)
 ADS_CS = machine.Pin(1)
 ADS_SCLK = machine.Pin(2)

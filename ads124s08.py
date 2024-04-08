@@ -122,12 +122,11 @@ class ADS124S08():
         self._cs = cs
         self._rst = reset
         self._sync = sync
-        self._drdy = Signal(drdy, inverted=True)  # pin is active high
+        self._drdy = Signal(drdy, invert=True)  # pin is active high
         # Set pin directions
         self._cs.init(mode=Pin.OUT)
         self._rst.init(mode=Pin.OUT)
         self._sync.init(mode=Pin.OUT)
-        self._drdy.init(mode=Pin.IN)
 
         # Default settings
         self._channel = 0
@@ -219,6 +218,6 @@ class ADS124S08():
 
     @property
     def data_ready(self) -> bool:
-        return not self._drdy.value()
+        return bool(self._drdy())
 # spi.write(bytes([0x12]))
 # spi.read(3, 0x00)

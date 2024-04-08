@@ -12,7 +12,7 @@ import hwconfig as hw
 import ads124s08
 
 # Create SPI object
-spi = machine.SPI(baudrate=10_000_000, polarity=0, phase=1,
+spi = machine.SPI(hw.SPI_ID, baudrate=10_000_000, polarity=0, phase=1,
                   firstbit=machine.SPI.MSB, sck=hw.ADS_SCLK,
                   mosi=hw.ADS_DIN, miso=hw.ADS_DOUT)
 # Create ads object
