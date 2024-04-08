@@ -16,7 +16,7 @@ The final directory should look something like this:
 └── main.py (optional)
 ```
 
-Once the scripts are uploaded, simply run them by importing the example script through the repl or main.py.
+Once the scripts are uploaded, simply run them by importing the example script through the Micropython REPL or main.py.
 
 ``` python
 import simple_scan.py
