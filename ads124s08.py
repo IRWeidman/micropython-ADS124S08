@@ -42,7 +42,7 @@ from machine import SPI, Pin, Signal
 
 # Conversion constants
 _VREF = const(2.5)
-_RES = const(_VREF/(2**23))
+_RES = _VREF/(2**23)
 
 # Registers
 _ADS_ID = const(0x00)
