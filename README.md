@@ -10,10 +10,19 @@ This repository contains a MicroPython driver for interfacing with the ADS124S08
 
 ## Installation
 
+### Installation with mip
+
+Simply run the following command:
+```
+$ mpremote mip install github:IRWeidman/micropython-ADS124S08/ads124s08.py
+```
+
+### Install directly from github
+
 1. Clone the repository:
 
 ```
-git clone https://github.com/your_username/ADS124S08-MicroPython-Driver.git
+$ git clone https://github.com/your_username/ADS124S08-MicroPython-Driver.git
 ```
 
 2. Copy `ads124s08.py` onto your microcontroller
