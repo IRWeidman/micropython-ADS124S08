@@ -134,14 +134,17 @@ class ADS124S08(object):
         # Startup ADS
         self._ads_init()
 
-    @property
-    def data_ready(self) -> bool:
-        return bool(self._drdy())
-
     def __setattr__(self, name, value):
         if name == 'channel':
             self._set_channel(value)
         super(ADS124S08, self).__setattr__(name, value)
+
+    @property
+    def data_ready(self) -> bool:
+        return bool(self._drdy())
+
+    def read(self) -> int:
+        return self._ads_read_direct()
 
     def _set_channel(self, channel: int) -> None:
         if channel not in range(12):
@@ -210,8 +213,5 @@ class ADS124S08(object):
             return int.from_bytes(data, "big")
         else:
             return -1
-
-    def read(self) -> int:
-        return self._ads_read_direct()
 # spi.write(bytes([0x12]))
 # spi.read(3, 0x00)
