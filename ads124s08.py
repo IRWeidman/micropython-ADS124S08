@@ -82,7 +82,7 @@ _RREG = const(0x20)
 _WREG = const(0x40)
 
 
-class ADS124S08():
+class ADS124S08(object):
     """Driver class for Texas Instruments ADS124S08
 
     Attributes:
@@ -129,10 +129,25 @@ class ADS124S08():
         self._sync.init(mode=Pin.OUT)
 
         # Default settings
-        self._channel = 0
+        self.channel = 0
 
         # Startup ADS
         self._ads_init()
+
+    @property
+    def data_ready(self) -> bool:
+        return bool(self._drdy())
+
+    def __setattr__(self, name, value):
+        if name == 'channel':
+            self._set_channel(value)
+        super(ADS124S08, self).__setattr__(name, value)
+
+    def _set_channel(self, channel: int) -> None:
+        if channel not in range(12):
+            raise ValueError("Channel must be between 0 and 11")
+        channel = (channel << 4) + 0x0C
+        self._write_reg(_ADS_INPMUX, channel)
 
     def _ads_init(self) -> None:
         # Reset ads)
@@ -198,26 +213,5 @@ class ADS124S08():
 
     def read(self) -> int:
         return self._ads_read_direct()
-
-    @property
-    def channel(self) -> int:
-        return self._channel
-
-    # Sets ain-positive to selected channel (channel << 4)
-    #   and ain-negative to ain-common (0x0C, i.e. 12)
-    #   Ex: to set channel to 5, write 0x5C to INPMUX channel
-    @channel.setter
-    def channel(self, channel: int):
-        # Ensure channel is valid
-        if channel not in range(12):
-            raise ValueError("Channel invalid.",
-                             "Channel must be between 0 and 11")
-        self._channel = channel
-        channel = (channel << 4) + 0x0C
-        self._write_reg(_ADS_INPMUX, channel)
-
-    @property
-    def data_ready(self) -> bool:
-        return bool(self._drdy())
 # spi.write(bytes([0x12]))
 # spi.read(3, 0x00)
