@@ -1,5 +1,5 @@
 {
     "urls": [
-        ["lib/ads124s08.py", "github:IRWeidman/micropython-ADS124S08/ads124s08.py"]
+        ["ads124s08.py", "github:IRWeidman/micropython-ADS124S08/ads124s08.py"]
     ]
 }
