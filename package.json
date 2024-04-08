@@ -2,6 +2,6 @@
     "urls": [
         ["ads124s08.py", "github:IRWeidman/micropython-ADS124S08/ads124s08.py"]
     ],
-    "deps": []
+    "deps": [],
     "version": "0.1.0"
 }
