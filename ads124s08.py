@@ -38,11 +38,13 @@ __status__ = "Prototype"
 
 # Imports
 from micropython import const
-from machine import SPI, Pin, Signal
+from machine import SPI, Pin, Signal, freq
+import utime
 
 # Conversion constants
 _VREF = const(2.5)
-_RES = _VREF/(2**23)
+# 24-bit signed int max
+_RES = _VREF/(16777215)
 
 # Registers
 _ADS_ID = const(0x00)
@@ -81,8 +83,27 @@ _RDATA = const(0x12)  # or 0x13
 _RREG = const(0x20)
 _WREG = const(0x40)
 
+# Calculate cycles per ns, then divide by 5 because min sleep time is 5 cycles
+_NS = (freq()/1e9)/5
+
+
+# @micropython.asm_thumb
+# def _asm_sleep(r0):
+#     """Function used to sleep for precice amount of time. Each iteration
+#     of this loop takes 5*r0 clock cycles to execute. Minimum sleep time
+#     is 5 clock cycles.
+
+#     Args:
+#         r0 (int): num cycles to delay
+#     """
+#     label(delay_loop)
+#     sub(r0, r0, 1)      # 1clk
+#     cmp(r0, 0)          # 1clk
+#     bgt(delay_loop)     # 3clk
+
 
 class ADS124S08(object):
+
     """Driver class for Texas Instruments ADS124S08
 
     Attributes:
@@ -143,52 +164,60 @@ class ADS124S08(object):
     def data_ready(self) -> bool:
         return bool(self._drdy())
 
-    def read(self) -> int:
+    def read_raw(self) -> int:
         return self._ads_read_direct()
+
+    def read_volt(self) -> float:
+        return self._ads_read_direct() * _RES
+
+    def _ads_init(self) -> None:
+        # Pin values
+        self._cs.high()
+        self._rst.high()
+        self._sync.high()
+        # Sleep for min 4 ads clock cycles, or 97ns @4.096MHz
+        #   Round up to 120ns for headroom
+        # _asm_sleep(120*_NS)
+        utime.sleep_us(20)
+
+        # Reset ads
+        self._hard_reset()
+        self._soft_reset()
+
+        # Initialize basic settings
+        self._write_reg(reg=_ADS_INPMUX, data=0x0C)
+        # Reference voltage settings
+        # 00: ref monitor disabled (default)
+        # 0:  positive ref buffer bypass enabled (default)
+        # 1:  negative ref buffer bypass disabled (default)
+        # 10: internal 2.5v ref
+        # 10: internal reference always on
+        # 0001 1001 -> 0x1A
+        self._write_reg(reg=_ADS_REF, data=0x1A)
+
+        # Start ads
+        self._hard_start()
+        self._soft_start()
+
+        utime.sleep_us(20)
+
+    def _send_cmd(self, cmd: int) -> None:
+        # Take cs low
+        self._cs.low()
+        # _asm_sleep(120*_NS)
+        utime.sleep_us(20)
+        # Write data
+        self._spi.write(bytes([cmd]))
+        # Take cs high
+        self._cs.high()
+        # _asm_sleep(120*_NS)
+        utime.sleep_us(20)
 
     def _set_channel(self, channel: int) -> None:
         if channel not in range(12):
             raise ValueError("Channel must be between 0 and 11")
         channel = (channel << 4) + 0x0C
         self._write_reg(_ADS_INPMUX, channel)
-
-    def _ads_init(self) -> None:
-        # Reset ads)
-        self._ads_reset()
-        self._send_cmd(_RESET)
-        # Initialize basic settings
-        self._write_reg(reg=_ADS_INPMUX, data=0x0C)
-        self._write_reg(reg=_ADS_REF, data=0x1A)  # Reference voltage is 2.6v)
-        # Start ads
-        self._sync.value(1)
-        self._sync.value(0)
-
-        self._send_cmd(_START)
-
-    def _ads_reset(self) -> None:
-        self._rst.value(1)
-        self._rst.value(0)
-        self._rst.value(1)
-
-    def _write_reg(self, reg: int, data: int):
-        # Prepare data to send
-        #   3 bytes: reg address, num bytes to write, data to write
-        write_buf = bytearray([_WREG+reg, 0x00, data])
-        self._cs.low()
-        # Write data to reg
-        self._spi.write(write_buf)
-        self._cs.high()
-
-    def _read_reg(self, reg: int):
-        pass
-
-    def _send_cmd(self, cmd: int) -> None:
-        # Take cs low
-        self._cs.low()
-        # Write data
-        self._spi.write(bytes([cmd]))
-        # Take cs high
-        self._cs.high()
 
     def _ads_read(self) -> int:
         # Prepare buffers
@@ -207,11 +236,51 @@ class ADS124S08(object):
         # Wait for drdy to transition low
         if self._drdy:
             self._cs.low()
+            utime.sleep_us(20)
             # Read 3 bytes
             data = self._spi.read(3, _NOP)
             self._cs.high()
             return int.from_bytes(data, "big")
         else:
             return -1
+
+    def _soft_reset(self) -> None:
+        self._send_cmd(_RESET)
+        # Delay for minimum of 4096tclk
+        # _asm_sleep(397312*_NS)
+        utime.sleep_us(1000)
+
+    def _soft_start(self) -> None:
+        self._send_cmd(_START)
+        # Delay for a minimum of 20ns (td(sccs))
+        # _asm_sleep(40*_NS)
+        utime.sleep_us(20)
+
+    def _hard_reset(self) -> None:
+        self._rst.low()
+        # Delay for minimum of 4tclk (tw(RSL))
+        # _asm_sleep(120*_NS)
+        utime.sleep_us(20)
+        self._rst.high()
+
+    def _hard_start(self) -> None:
+        self._sync.low()
+        # Delay for minimum of 4tckl (tw(STH)/tw(STL))
+        # _asm_sleep(120*_NS)
+        utime.sleep_us(20)
+
+    def _write_reg(self, reg: int, data: int):
+        # Prepare data to send
+        #   3 bytes: reg address, num bytes to write, data to write
+        write_buf = bytearray([_WREG+reg, 0x00, data])
+        self._cs.low()
+        utime.sleep_us(20)
+        # Write data to reg
+        self._spi.write(write_buf)
+        utime.sleep_us(20)
+        self._cs.high()
+
+    def _read_reg(self, reg: int):
+        pass
 # spi.write(bytes([0x12]))
 # spi.read(3, 0x00)

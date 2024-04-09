@@ -20,21 +20,11 @@ ads = ads124s08.ADS124S08(spi=spi, cs=hw.ADS_CS, reset=hw.ADS_RESET,
                           sync=hw.ADS_SYNC, drdy=hw.ADS_DRDY)
 
 while True:
-    # Wait for data availability
-    print('waiting for data', end='')
-    while not ads.data_ready:
-        print('.', end='')
-        time.sleep_ms(250)
-    print(ads.data_ready)
-
-    print('--------------------')
-
     # Print the readings on each channel
     for i in range(12):
         ads.channel = i
-        reading = ads.read()
+        time.sleep_ms(500)
+        reading = ads.read_raw()
 
         print(f'channel_{i:<4}|{reading:>7}')
-
-        time.sleep_ms(250)
     print()
