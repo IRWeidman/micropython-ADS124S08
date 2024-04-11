@@ -167,7 +167,7 @@ class ADS124S08(object):
     def read_int(self) -> int:
         # Append 0-byte to right side to convert to 32-bit while
         #   retaining sign
-        reading = self._ads_read_direct()
+        reading = self._read_direct()
         # Unpack result into int, big-ending, and right-shift out buffer byte
         return ustruct.unpack('>i', reading + b'\x00')[0] >> 8
 
@@ -177,7 +177,7 @@ class ADS124S08(object):
         return reading * (self.ref/(2**23))
 
     def read_raw(self) -> bytes:
-        return self._ads_read_direct()
+        return self._read_direct()
 
     def _ads_init(self) -> None:
         # Pin values
@@ -194,8 +194,8 @@ class ADS124S08(object):
         self._soft_reset()
 
         # Initialize basic settings
-        self._write_reg(reg=_ADS_REF, data=0x1A)
-        self._write_reg(reg=_ADS_INPMUX, data=0x10)
+        self._set_ref(2.5)
+        self._set_channel(1)
 
         # Start ads
         self._hard_start()
@@ -225,7 +225,7 @@ class ADS124S08(object):
         if ref == 2.5:
             # Reference voltage settings
             # 00: ref monitor disabled (default)
-            # 1:  positive ref buffer bypass disabled
+            # 0:  positive ref buffer bypass enabled (default)
             # 1:  negative ref buffer bypass disabled (default)
             # 10: internal 2.5v ref
             # 10: internal reference always on
@@ -241,7 +241,7 @@ class ADS124S08(object):
             # 0001 0000 -> 0x10
             self._write_reg(reg=_ADS_REF, data=0x10)
 
-    def _ads_read(self) -> bytes:
+    def _read(self) -> bytes:
         # Prepare buffers
         write_buf = bytearray([_RDATA, _NOP, _NOP, _NOP])
         read_buf = bytearray(4)
@@ -255,7 +255,7 @@ class ADS124S08(object):
         # Combine 3 bytes in from ADS into a single int, big endian
         return read_buf[1:]
 
-    def _ads_read_direct(self) -> bytearray:
+    def _read_direct(self) -> bytearray:
         # Prepare buffer
         read_buf = bytearray(3)
 
