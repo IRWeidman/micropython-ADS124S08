@@ -40,11 +40,7 @@ __status__ = "Prototype"
 from micropython import const
 from machine import SPI, Pin, Signal, freq
 import utime
-
-# Conversion constants
-_VREF = const(2.5)
-# 24-bit signed int max
-_RES = _VREF/(16777215)
+import ustruct
 
 # Registers
 _ADS_ID = const(0x00)
@@ -121,7 +117,8 @@ class ADS124S08(object):
                  cs: Pin,
                  reset: Pin,
                  sync: Pin,
-                 drdy: Pin):
+                 drdy: Pin,
+                 ref: float = 2.5):
         """Constructs all attributes required to drive ADC unit, applies
         definded configuration, and begins the ADC
 
@@ -144,6 +141,7 @@ class ADS124S08(object):
         self._rst = reset
         self._sync = sync
         self._drdy = Signal(drdy, invert=True)  # pin is active high
+        self.ref = ref
         # Set pin directions
         self._cs.init(mode=Pin.OUT)
         self._rst.init(mode=Pin.OUT)
@@ -158,17 +156,28 @@ class ADS124S08(object):
     def __setattr__(self, name, value):
         if name == 'channel':
             self._set_channel(value)
+        if name == 'ref':
+            self._set_ref(value)
         super(ADS124S08, self).__setattr__(name, value)
 
     @property
     def data_ready(self) -> bool:
         return bool(self._drdy())
 
-    def read_raw(self) -> int:
-        return self._ads_read_direct()
+    def read_int(self) -> int:
+        # Append 0-byte to right side to convert to 32-bit while
+        #   retaining sign
+        reading = self._ads_read_direct()
+        # Unpack result into int, big-ending, and right-shift out buffer byte
+        return ustruct.unpack('>i', reading + b'\x00')[0] >> 8
 
     def read_volt(self) -> float:
-        return self._ads_read_direct() * _RES
+        reading = self.read_int()
+        # Apply conversion
+        return reading * (self.ref/(2**23))
+
+    def read_raw(self) -> bytes:
+        return self._ads_read_direct()
 
     def _ads_init(self) -> None:
         # Pin values
@@ -185,15 +194,8 @@ class ADS124S08(object):
         self._soft_reset()
 
         # Initialize basic settings
-        self._write_reg(reg=_ADS_INPMUX, data=0x0C)
-        # Reference voltage settings
-        # 00: ref monitor disabled (default)
-        # 0:  positive ref buffer bypass enabled (default)
-        # 1:  negative ref buffer bypass disabled (default)
-        # 10: internal 2.5v ref
-        # 10: internal reference always on
-        # 0001 1001 -> 0x1A
         self._write_reg(reg=_ADS_REF, data=0x1A)
+        self._write_reg(reg=_ADS_INPMUX, data=0x10)
 
         # Start ads
         self._hard_start()
@@ -216,39 +218,59 @@ class ADS124S08(object):
     def _set_channel(self, channel: int) -> None:
         if channel not in range(12):
             raise ValueError("Channel must be between 0 and 11")
-        channel = (channel << 4) + 0x0C
+        channel = (channel << 4) + 0x00
         self._write_reg(_ADS_INPMUX, channel)
 
-    def _ads_read(self) -> int:
+    def _set_ref(self, ref: float) -> None:
+        if ref == 2.5:
+            # Reference voltage settings
+            # 00: ref monitor disabled (default)
+            # 1:  positive ref buffer bypass disabled
+            # 1:  negative ref buffer bypass disabled (default)
+            # 10: internal 2.5v ref
+            # 10: internal reference always on
+            # 0011 1010 -> 0x3A
+            self._write_reg(reg=_ADS_REF, data=0x1A)
+        else:
+            # Reference voltage settings
+            # 00: ref monitor disabled (default)
+            # 0:  positive ref buffer bypass enabled (default)
+            # 1:  negative ref buffer bypass disabled (default)
+            # 00: REFP0, REFN0 (default)
+            # 00: internal reference off (default)
+            # 0001 0000 -> 0x10
+            self._write_reg(reg=_ADS_REF, data=0x10)
+
+    def _ads_read(self) -> bytes:
         # Prepare buffers
         write_buf = bytearray([_RDATA, _NOP, _NOP, _NOP])
         read_buf = bytearray(4)
 
         self._cs.low()
+        utime.sleep_us(20)
         # write _RDATA, then read 3 bytes
         self._spi.write_readinto(write_buf, read_buf)
         self._cs.high()
 
         # Combine 3 bytes in from ADS into a single int, big endian
-        return int.from_bytes(read_buf[1:], "big")
+        return read_buf[1:]
 
-    def _ads_read_direct(self) -> int:
-        # Wait for drdy to transition low
-        if self._drdy:
-            self._cs.low()
-            utime.sleep_us(20)
-            # Read 3 bytes
-            data = self._spi.read(3, _NOP)
-            self._cs.high()
-            return int.from_bytes(data, "big")
-        else:
-            return -1
+    def _ads_read_direct(self) -> bytearray:
+        # Prepare buffer
+        read_buf = bytearray(3)
+
+        self._cs.low()
+        utime.sleep_us(20)
+        # Read 3 bytes
+        self._spi.readinto(read_buf, _NOP)
+        self._cs.high()
+        return read_buf
 
     def _soft_reset(self) -> None:
         self._send_cmd(_RESET)
         # Delay for minimum of 4096tclk
         # _asm_sleep(397312*_NS)
-        utime.sleep_us(1000)
+        utime.sleep_ms(20)
 
     def _soft_start(self) -> None:
         self._send_cmd(_START)
