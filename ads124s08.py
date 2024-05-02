@@ -236,10 +236,10 @@ class ADS124S08(object):
             # 00: ref monitor disabled (default)
             # 0:  positive ref buffer bypass enabled (default)
             # 1:  negative ref buffer bypass disabled (default)
-            # 00: REFP0, REFN0 (default)
+            # 01: REFP1, REFN1 (default)
             # 00: internal reference off (default)
-            # 0001 0000 -> 0x10
-            self._write_reg(reg=_ADS_REF, data=0x10)
+            # 0001 0100 -> 0x14
+            self._write_reg(reg=_ADS_REF, data=0x14)
 
     def _read(self) -> bytes:
         # Prepare buffers
