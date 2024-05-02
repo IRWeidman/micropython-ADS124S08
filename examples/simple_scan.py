@@ -19,12 +19,14 @@ spi = machine.SPI(hw.SPI_ID, baudrate=10_000_000, polarity=0, phase=1,
 ads = ads124s08.ADS124S08(spi=spi, cs=hw.ADS_CS, reset=hw.ADS_RESET,
                           sync=hw.ADS_SYNC, drdy=hw.ADS_DRDY)
 
-while True:
-    # Print the readings on each channel
-    for i in range(12):
-        ads.channel = i
-        time.sleep_ms(500)
-        reading = ads.read_raw()
 
-        print(f'channel_{i:<4}|{reading:>7}')
-    print()
+if __name__ == '__main__':
+    while True:
+        # Print the readings on each channel
+        for i in range(12):
+            ads.channel = i
+            time.sleep_ms(500)
+            reading = ads.read_int()
+
+            print(f'channel_{i:<4}|{reading:>7}')
+        print()
